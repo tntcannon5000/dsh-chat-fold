@@ -1,0 +1,4 @@
+# DSH Chat Fold bundle layer: one removable dual-face plugin row.
+- insert:
+    - id: dsh-chat-fold
+      name: 'dsh-chat-fold'
