@@ -8,17 +8,33 @@ export const CHAT_FOLD_STYLES = `
   display: none !important;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-toggle] {
+[data-dsh-fold-root] [data-dsh-fold-button] {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  box-sizing: border-box;
+  color: inherit;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin: 2px 0 0 auto;
+  padding: 0;
+  font: inherit;
+  line-height: 1;
+  opacity: 0.55;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-toggle]::after {
-  content: '\\2304';
-  margin-left: 6px;
-  opacity: 0.6;
+[data-dsh-fold-root] [data-dsh-fold-button]:hover {
+  opacity: 1;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-toggle][data-dsh-fold-open]::after {
-  content: '\\2303';
+[data-dsh-fold-root] [data-dsh-fold-button][data-dsh-fold-labeled] {
+  width: auto;
+  gap: 4px;
+  padding: 0 8px;
 }
 `
