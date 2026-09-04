@@ -18,8 +18,9 @@
  * The controller hides folded process rows through plugin-owned data
  * attributes and one stylesheet, and toggles a turn through one plugin-owned
  * disclosure button placed inside the empty `turn-process` row — visually the
- * stock "N tool calls ›" line above the final answer, never at the bottom of
- * the chat. The disclosure is self-healing: a stock re-render that removes it
+ * stock disclosure line above the final answer, labeled with the footer's
+ * localized end-to-end duration and never placed at the bottom of the chat.
+ * The disclosure is self-healing: a stock re-render that removes it
  * is observed and the next classification pass re-appends it. While stock
  * folding is active the controller stands down completely and removes its own
  * additions.
@@ -42,6 +43,8 @@ export interface ChatFoldControllerOptions {
     readonly separator: string;
     /** Summary fallback for a turn with no counted process segments. */
     readonly thoughtLabel: string;
+    /** Stock-compatible localized template used only to identify its rendered duration label. */
+    readonly ranForTemplate: string;
 }
 /**
  * Restore compact turn folding on the stock Chat transcript.

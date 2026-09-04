@@ -7,12 +7,13 @@ Read [`HORIZON.md`](HORIZON.md) before planning or implementing a change. These 
 The plugin owns:
 
 - compact-turn presentation of the stock Harness Web transcript in long sessions;
-- plugin-namespaced data attributes, one stylesheet, and one disclosure button element per settled turn placed in the stock `turn-process` slot;
-- the localized summary and labels for that disclosure through the plugin's own locale namespace.
+- plugin-namespaced data attributes, one stylesheet, and one disclosure subtree per settled turn placed in the stock `turn-process` slot;
+- the localized accessibility labels for that disclosure and the stock footer's localized end-to-end duration text;
+- a one-time four-page preload through each selected Session object's public history operation.
 
 The plugin does not own:
 
-- session data, history windowing, or any Harness RPC behavior;
+- session data, page-size constants, or any Harness RPC behavior;
 - the stock fold feature; the plugin stands down whenever stock folding is active;
 - the stock footer actions; the footer row itself is never a toggle target because a touch tap on it can activate stock actions such as fork;
 - authentication, relay behavior, or Harness source.
@@ -20,18 +21,20 @@ The plugin does not own:
 ## Architecture rules
 
 1. **Client-only.** The Host face exists only so DSH can discover the Client half; it must stay empty.
-2. **Locale for labels.** The client half declares `inject: ['locale']`, registers its own `dsh-chat-fold` namespace (en/zh), and passes the summary and label templates into the controller. Do not add further Cordis service dependencies.
-3. **Semantic anchors only.** Read `data-chat-flow-kind`, `data-chat-turn`, `data-chat-anchor-key`, and `data-turn-process-member`. Never target generated CSS-module class names.
-4. **Minimal writes.** The controller may set or remove only `data-dsh-fold-root`, `data-dsh-fold-standdown`, and `data-dsh-fold-hidden` on stock rows. The one element it creates is its disclosure `<button>` (`data-dsh-fold-disclosure`), appended as the only child of the turn's empty stock `turn-process` row; never reparent or remove React-owned DOM. The stock `hidden="until-found"` hiding of that slot is overridden only for rows hosting the disclosure, only while not standing down.
+2. **Locale and sessions only.** The client half declares `inject: ['locale', 'sessions']`, registers its own `dsh-chat-fold` namespace (en/zh), and uses the public sessions service only to preload four additional pages. Do not add further Cordis service dependencies.
+3. **Semantic anchors only.** Read `data-chat-flow-kind`, `data-chat-turn`, `data-chat-anchor-key`, `data-actions-reveal`, `data-variant="think"`, ARIA dialog semantics, and `data-turn-process-member`. Never target generated CSS-module class names or parse localized duration text.
+4. **Minimal writes.** The fold controller may set or remove only `data-dsh-fold-root`, `data-dsh-fold-standdown`, `data-dsh-fold-hidden`, and `data-dsh-fold-inline-hidden` on stock elements. Its disclosure `<button>` (`data-dsh-fold-disclosure`) owns its label span and SVG chevron inside the turn's empty stock `turn-process` row; never reparent or remove React-owned DOM. The stock `hidden="until-found"` hiding of that slot is overridden only for rows hosting the disclosure, only while not standing down.
 5. **One observer, one pass.** A single document-scoped childList MutationObserver guards container liveness with an O(1) check and schedules one rAF-throttled classification per batch. Classification walks only direct flow-row children of the container.
 6. **Diffed writes.** Attribute and disclosure-state writes diff against current state so streaming rows are not rewritten every frame; a stock re-render that removes the disclosure is healed by the next pass.
 7. **Stock first.** When any row carries `data-turn-process-member`, the controller sets its stand-down marker, removes its disclosure buttons and fold attributes, and stops toggling.
-8. **Disposal is complete.** The disposer removes the observer, click listener, stylesheet, every owned attribute, and every disclosure button.
-9. **English comments.** The chevron glyph and transforms are language-neutral; all product copy lives in the locale namespace.
+8. **History preload is bounded.** The history controller subscribes only to the sessions list and the selected Session snapshot, calls `loadOlder()` sequentially at most four times per Session object, and stops on exhaustion, selection change, or disposal.
+9. **Disposal is complete.** The disposers remove observers, subscriptions, click listeners, stylesheet, every owned attribute, and every disclosure subtree.
+10. **English comments.** The SVG chevron and transforms are language-neutral; all plugin-owned product copy lives in the locale namespace, while the visible duration is copied verbatim from stock's localized footer.
 
 ## Testing
 
-- Unit tests use jsdom with real MutationObserver timing: mutations flush through a macrotask, and classification flushes through a deferred rAF queue (never synchronously inside the observer callback). Coverage: fold classification, answer selection, summary composition (tool calls, messages, thought fallback), live-turn exemption, stand-down, disclosure toggle and `aria-expanded`, disclosure self-healing after removal, turns without a disclosure slot staying unfolded, disposal, and container replacement.
+- Fold-controller tests use jsdom with real MutationObserver timing: mutations flush through a macrotask, and classification flushes through a deferred rAF queue. Coverage includes stock-duration reuse and fallback, system-prompt and final-row reasoning folding, live-turn exemption, stand-down, disclosure toggle and `aria-expanded`, SVG chevron state, self-healing, no-slot behavior, disposal, and container replacement.
+- History-controller tests drive fake sessions/list stores and cover four sequential preloads, early exhaustion, selection changes, once-per-object behavior, failure containment, and disposal.
 - Run `pnpm run check` (typecheck, unit tests, build, and built-artifact verification) before every commit.
 - The artifact verifier executes `lib/client.js` alone and between neighboring Harness-style factory registrations, verifies its module id and Cordis exports, checks the source map, and rejects a publication layout that ignores or omits the built Client files.
 - Live validation loads the built `lib/client.js` through a Web profile `link:` dependency and exercises a clean Web cold start, a long session where stock folding is dormant, and a short session where stock folding engages.

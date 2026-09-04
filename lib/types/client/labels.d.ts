@@ -17,6 +17,8 @@ export interface ChatFoldLabels {
     readonly separator: string;
     /** Summary fallback for a turn with no counted process segments. */
     readonly thoughtLabel: string;
+    /** Stock-compatible end-to-end duration template. */
+    readonly ranForTemplate: string;
 }
 /** English labels. */
 export declare const en: {
@@ -28,6 +30,7 @@ export declare const en: {
     'fold.message.other': string;
     'fold.separator': string;
     'fold.thought': string;
+    'fold.ranFor': string;
 };
 /** Simplified Chinese labels. */
 export declare const zh: {
@@ -39,4 +42,5 @@ export declare const zh: {
     'fold.message.other': string;
     'fold.separator': string;
     'fold.thought': string;
+    'fold.ranFor': string;
 };

@@ -1,7 +1,7 @@
 {
   "name": "dsh-chat-fold",
-  "version": "0.1.0-alpha.4",
-  "description": "Unofficial DeepSeek Harness plugin that restores compact turn folding in long sessions where the stock Web transcript keeps every completed tool row expanded.",
+  "version": "0.1.0-alpha.5",
+  "description": "Unofficial DeepSeek Harness plugin for compact long-session folding, end-to-end turn durations, and a five-times-larger default history window.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -37,7 +37,8 @@
     "client": {
       "platform": "web",
       "inject": [
-        "@deepseek-ai/dsh-client-locale"
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-api-session-controller"
       ]
     }
   },

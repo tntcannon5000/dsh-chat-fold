@@ -18,8 +18,9 @@
  * The controller hides folded process rows through plugin-owned data
  * attributes and one stylesheet, and toggles a turn through one plugin-owned
  * disclosure button placed inside the empty `turn-process` row — visually the
- * stock "N tool calls ›" line above the final answer, never at the bottom of
- * the chat. The disclosure is self-healing: a stock re-render that removes it
+ * stock disclosure line above the final answer, labeled with the footer's
+ * localized end-to-end duration and never placed at the bottom of the chat.
+ * The disclosure is self-healing: a stock re-render that removes it
  * is observed and the next classification pass re-appends it. While stock
  * folding is active the controller stands down completely and removes its own
  * additions.
@@ -29,7 +30,6 @@ import { CHAT_FOLD_STYLES } from './styles.js'
 
 /** One flow row kind that stock folding never hides. */
 const INDEPENDENT_KINDS: ReadonlySet<string> = new Set([
-  'system-prompt',
   'user',
   'steering',
   'turn-process',
@@ -47,11 +47,11 @@ const TOOL_CALL_KIND = 'tool-call'
 const ROOT_ATTR = 'data-dsh-fold-root'
 const STANDDOWN_ATTR = 'data-dsh-fold-standdown'
 const HIDDEN_ATTR = 'data-dsh-fold-hidden'
+const INLINE_HIDDEN_ATTR = 'data-dsh-fold-inline-hidden'
 const DISCLOSURE_ATTR = 'data-dsh-fold-disclosure'
 const OPEN_ATTR = 'data-dsh-fold-open'
-
-const FOLDED_GLYPH = '⌄'
-const EXPANDED_GLYPH = '⌄'
+const THINK_SELECTOR = '[data-variant="think"]'
+const SVG_NS = 'http://www.w3.org/2000/svg'
 
 interface FlowRow {
   readonly element: HTMLElement
@@ -87,6 +87,8 @@ export interface ChatFoldControllerOptions {
   readonly separator: string
   /** Summary fallback for a turn with no counted process segments. */
   readonly thoughtLabel: string
+  /** Stock-compatible localized template used only to identify its rendered duration label. */
+  readonly ranForTemplate: string
 }
 
 function rowOf(element: Element): FlowRow | null {
@@ -139,15 +141,16 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
   }
 
   const clearOwnedAdditions = (container: HTMLElement): void => {
-    for (const element of container.querySelectorAll(`[${HIDDEN_ATTR}]`)) {
+    for (const element of container.querySelectorAll(`[${HIDDEN_ATTR}], [${INLINE_HIDDEN_ATTR}]`)) {
       element.removeAttribute(HIDDEN_ATTR)
+      element.removeAttribute(INLINE_HIDDEN_ATTR)
     }
     for (const disclosure of container.querySelectorAll(`[${DISCLOSURE_ATTR}]`)) {
       disclosure.remove()
     }
   }
 
-  /** Compose the stock disclosure summary from the turn's counted rows. */
+  /** Compose the count fallback used when stock exposes no turn duration. */
   const summaryOf = (toolCalls: number, messages: number): string => {
     const segments: string[] = []
     if (toolCalls > 0) {
@@ -165,6 +168,44 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
     return segments.length === 0 ? options.thoughtLabel : segments.join(options.separator)
   }
 
+  /** Reuse stock's localized end-to-end duration without parsing or reformatting it. */
+  const runLabelOf = (group: readonly FlowRow[]): string | null => {
+    const tail = group.find(row => row.kind === 'turn-tail')?.element
+    if (tail === undefined) return null
+    const marker = '{duration}'
+    const markerAt = options.ranForTemplate.indexOf(marker)
+    if (markerAt === -1) return null
+    const prefix = options.ranForTemplate.slice(0, markerAt)
+    const suffix = options.ranForTemplate.slice(markerAt + marker.length)
+    for (const button of tail.querySelectorAll<HTMLButtonElement>(
+      '[data-actions-reveal] button[aria-haspopup="dialog"]',
+    )) {
+      const text = button.textContent?.trim() ?? ''
+      if (text.startsWith(prefix) && text.endsWith(suffix) && text.length > prefix.length + suffix.length) {
+        return text
+      }
+    }
+    return null
+  }
+
+  const createChevron = (): SVGSVGElement => {
+    const svg = document.createElementNS(SVG_NS, 'svg')
+    svg.setAttribute('viewBox', '0 0 16 16')
+    svg.setAttribute('width', '16')
+    svg.setAttribute('height', '16')
+    svg.setAttribute('aria-hidden', 'true')
+    svg.setAttribute('focusable', 'false')
+    const path = document.createElementNS(SVG_NS, 'path')
+    path.setAttribute('d', 'M4 6l4 4 4-4')
+    path.setAttribute('fill', 'none')
+    path.setAttribute('stroke', 'currentColor')
+    path.setAttribute('stroke-width', '1.5')
+    path.setAttribute('stroke-linecap', 'round')
+    path.setAttribute('stroke-linejoin', 'round')
+    svg.appendChild(path)
+    return svg
+  }
+
   const syncDisclosure = (
     processRow: HTMLElement,
     summary: string,
@@ -176,24 +217,19 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
       disclosure.type = 'button'
       disclosure.setAttribute(DISCLOSURE_ATTR, '')
       const labelSpan = document.createElement('span')
-      const glyphSpan = document.createElement('span')
-      glyphSpan.textContent = FOLDED_GLYPH
-      disclosure.append(labelSpan, glyphSpan)
+      disclosure.append(labelSpan, createChevron())
       processRow.appendChild(disclosure)
     }
     const labelSpan = disclosure.querySelector<HTMLElement>(':scope > span:first-child')
     if (labelSpan !== null && labelSpan.textContent !== summary) {
       labelSpan.textContent = summary
     }
-    if (disclosure.getAttribute('aria-label') !== summary) {
-      disclosure.setAttribute('aria-label', summary)
+    const actionLabel = `${open ? options.hideLabel : options.showLabel}: ${summary}`
+    if (disclosure.getAttribute('aria-label') !== actionLabel) {
+      disclosure.setAttribute('aria-label', actionLabel)
     }
     disclosure.setAttribute('aria-expanded', String(open))
     writeRow(disclosure, OPEN_ATTR, open)
-    const glyphSpan = disclosure.querySelector<HTMLElement>(':scope > span:last-child')
-    if (glyphSpan !== null && glyphSpan.textContent !== EXPANDED_GLYPH) {
-      glyphSpan.textContent = EXPANDED_GLYPH
-    }
   }
 
   const classify = (bound: FoldState): void => {
@@ -221,21 +257,30 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
       const settled = group.some(row => row.kind === 'turn-tail')
       const processRow = group.find(row => row.kind === 'turn-process')
       const answerIndex = group.findLastIndex(row => row.kind === 'assistant-step')
+      const answerRow = answerIndex === -1 ? undefined : group[answerIndex]?.element
+      const inlineReasoning = answerRow?.querySelectorAll<HTMLElement>(THINK_SELECTOR) ?? []
       const open = bound.expanded.has(key)
+      const folded = settled && processRow !== undefined && !open
       let toolCalls = 0
       let messages = 0
       let foldableRows = 0
       for (const [index, row] of group.entries()) {
         const isAnswer = row.kind === 'assistant-step' && index === answerIndex
         const foldable = !INDEPENDENT_KINDS.has(row.kind) && !isAnswer
+        writeRow(row.element, HIDDEN_ATTR, foldable && folded)
         if (!foldable) continue
         foldableRows += 1
         if (row.kind === TOOL_CALL_KIND) toolCalls += 1
         else if (row.kind === 'assistant-step') messages += 1
-        writeRow(row.element, HIDDEN_ATTR, settled && processRow !== undefined && !open)
       }
-      if (!settled || processRow === undefined || foldableRows === 0) continue
-      syncDisclosure(processRow.element, summaryOf(toolCalls, messages), open)
+      for (const reasoning of inlineReasoning) writeRow(reasoning, INLINE_HIDDEN_ATTR, folded)
+      const foldableSegments = foldableRows + inlineReasoning.length
+      if (!settled || processRow === undefined || foldableSegments === 0) {
+        processRow?.element.querySelector(`:scope > [${DISCLOSURE_ATTR}]`)?.remove()
+        continue
+      }
+      const summary = runLabelOf(group) ?? summaryOf(toolCalls, messages)
+      syncDisclosure(processRow.element, summary, open)
     }
     for (const key of bound.expanded) {
       if (!liveKeys.has(key)) bound.expanded.delete(key)
@@ -268,8 +313,12 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
     const bound = state
     if (bound !== null) {
       if (!bound.container.isConnected) {
+        if (frame !== null) window.cancelAnimationFrame(frame)
+        frame = null
         bound.container.removeEventListener('click', onClick)
         bound.container.removeAttribute(ROOT_ATTR)
+        bound.container.removeAttribute(STANDDOWN_ATTR)
+        clearOwnedAdditions(bound.container)
         state = null
       } else if (records.some(record => bound.container.contains(record.target))) {
         schedule(bound)

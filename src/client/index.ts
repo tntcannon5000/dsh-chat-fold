@@ -5,12 +5,13 @@ import {
   type ChatFoldLabels,
 } from './labels.js'
 import { installChatFoldController } from './fold-controller.js'
+import { installHistoryPreloader, type HistorySessions } from './history-preloader.js'
 
 /** Stable Client plugin name. */
 export const name = 'chat-fold'
 
-/** The locale service carries the toggle button's accessible labels. */
-export const inject = ['locale']
+/** Services required for localized folding and bounded history preload. */
+export const inject = ['locale', 'sessions']
 
 /** Small portion of the public locale service used by this plugin. */
 export interface ChatFoldLocale {
@@ -21,6 +22,7 @@ export interface ChatFoldLocale {
 /** Client context needed to mount the fold controller. */
 export interface ChatFoldClientContext {
   locale: ChatFoldLocale
+  sessions: HistorySessions
   effect(setup: () => () => void, label: string): void
 }
 
@@ -34,12 +36,13 @@ function labelsOf(t: (key: keyof typeof labelsEn) => string): ChatFoldLabels {
     messageOther: t('fold.message.other'),
     separator: t('fold.separator'),
     thoughtLabel: t('fold.thought'),
+    ranForTemplate: t('fold.ranFor'),
   }
 }
 
 /**
- * Mount the compact-transcript fold controller with localized toggle labels.
- * @param context - browser Cordis context providing the locale service.
+ * Mount compact folding and the bounded selected-session history preload.
+ * @param context - browser Cordis context providing locale and sessions services.
  */
 export function apply(context: ChatFoldClientContext): void {
   context.effect(() => {
@@ -47,7 +50,9 @@ export function apply(context: ChatFoldClientContext): void {
     const disposeController = installChatFoldController(
       labelsOf(context.locale.bind('dsh-chat-fold')),
     )
+    const disposeHistory = installHistoryPreloader(context.sessions)
     return () => {
+      disposeHistory()
       disposeController()
       disposeLocale()
     }

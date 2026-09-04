@@ -5,7 +5,8 @@
  * mirror the stock turn-process button's layout one-for-one.
  */
 export const CHAT_FOLD_STYLES = `
-[data-dsh-fold-root]:not([data-dsh-fold-standdown]) [data-dsh-fold-hidden] {
+[data-dsh-fold-root]:not([data-dsh-fold-standdown])
+:is([data-dsh-fold-hidden], [data-dsh-fold-inline-hidden]) {
   display: none !important;
 }
 
@@ -38,7 +39,7 @@ export const CHAT_FOLD_STYLES = `
 }
 
 [data-dsh-fold-root] [data-dsh-fold-disclosure] > span:first-child {
-  font-size: 14px;
+  font-size: 15px;
   line-height: 24px;
   min-width: 0;
   overflow: hidden;
@@ -46,22 +47,21 @@ export const CHAT_FOLD_STYLES = `
   white-space: nowrap;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-disclosure] > span:last-child {
+[data-dsh-fold-root] [data-dsh-fold-disclosure] > svg {
   color: var(--dsw-alias-label-tertiary);
   flex: none;
-  height: 16px;
-  margin-left: 6px;
+  margin-left: 7px;
   transform: rotate(-90deg);
-  transition: transform 100ms ease;
-  width: 16px;
+  transform-origin: center;
+  transition: transform 140ms ease;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-disclosure][data-dsh-fold-open] > span:last-child {
+[data-dsh-fold-root] [data-dsh-fold-disclosure][data-dsh-fold-open] > svg {
   transform: rotate(0deg);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-dsh-fold-root] [data-dsh-fold-disclosure] > span:last-child {
+  [data-dsh-fold-root] [data-dsh-fold-disclosure] > svg {
     transition: none;
   }
 }
