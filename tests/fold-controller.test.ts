@@ -7,9 +7,19 @@ interface RowSpec {
   readonly anchorKey: string
   readonly text?: string
   readonly stockMember?: boolean
+  readonly stockHidden?: boolean
 }
 
-const OPTIONS = { showLabel: 'Show turn process', hideLabel: 'Hide turn process' } as const
+const OPTIONS = {
+  showLabel: 'Show turn process',
+  hideLabel: 'Hide turn process',
+  toolCallOne: '{count} tool call',
+  toolCallOther: '{count} tool calls',
+  messageOne: '{count} message',
+  messageOther: '{count} messages',
+  separator: ' · ',
+  thoughtLabel: 'Thought for a while',
+} as const
 
 function rowElement(spec: RowSpec): HTMLElement {
   const row = document.createElement('div')
@@ -17,6 +27,7 @@ function rowElement(spec: RowSpec): HTMLElement {
   row.setAttribute('data-chat-turn', String(spec.turn))
   row.setAttribute('data-chat-anchor-key', spec.anchorKey)
   if (spec.stockMember === true) row.setAttribute('data-turn-process-member', '')
+  if (spec.stockHidden === true) row.setAttribute('hidden', 'until-found')
   if (spec.text !== undefined) row.textContent = spec.text
   return row
 }
@@ -33,9 +44,9 @@ function row(container: HTMLElement, anchorKey: string): HTMLElement | null {
   return container.querySelector<HTMLElement>(`[data-chat-anchor-key="${anchorKey}"]`)
 }
 
-function foldButton(container: HTMLElement, turn: number): HTMLButtonElement | null {
+function disclosure(container: HTMLElement, turn: number): HTMLButtonElement | null {
   return container.querySelector<HTMLButtonElement>(
-    `[data-chat-flow-kind="turn-tail"][data-chat-turn="${turn}"] > [data-dsh-fold-button]`,
+    `[data-chat-flow-kind="turn-process"][data-chat-turn="${turn}"] > [data-dsh-fold-disclosure]`,
   )
 }
 
@@ -68,9 +79,10 @@ beforeEach(() => {
 })
 
 describe('chat fold controller', () => {
-  it('folds settled turns down to user, answer, and footer rows', async () => {
+  it('folds settled turns behind a stock-style disclosure above the answer', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
       { kind: 'context', turn: 1, anchorKey: 'c1', text: 'context' },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'narration' },
@@ -91,13 +103,14 @@ describe('chat fold controller', () => {
     expect(row(container, 'a1')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
     expect(row(container, 'a2')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
     expect(row(container, 'u1')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
-    const button = foldButton(container, 1)
-    expect(button?.getAttribute('aria-label')).toBe('Show turn process')
-    expect(button?.textContent).toBe('⌄')
+    const summary = disclosure(container, 1)
+    expect(summary?.getAttribute('aria-expanded')).toBe('false')
+    expect(summary?.querySelector('span')?.textContent).toBe('1 tool call · 1 message')
+    expect(summary?.querySelector('span:last-child')?.textContent).toBe('⌄')
     // The still-running turn 2 has no footer row and stays untouched.
     expect(row(container, 't2')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
     expect(row(container, 'a3')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
-    expect(foldButton(container, 2)).toBeNull()
+    expect(disclosure(container, 2)).toBeNull()
 
     dispose()
   })
@@ -105,6 +118,7 @@ describe('chat fold controller', () => {
   it('keeps stock folding in charge while its markers are present', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool', stockMember: true },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
       { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 1m' },
@@ -116,65 +130,65 @@ describe('chat fold controller', () => {
 
     expect(container.hasAttribute('data-dsh-fold-standdown')).toBe(true)
     expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
-    expect(foldButton(container, 1)).toBeNull()
+    expect(disclosure(container, 1)).toBeNull()
 
     dispose()
   })
 
-  it('expands a turn from its toggle button and collapses it again', async () => {
+  it('expands a turn from its disclosure and collapses it again', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
+      { kind: 'tool-call', turn: 1, anchorKey: 't2', text: 'tool' },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
       { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 3m' },
     ])
     const dispose = installChatFoldController(OPTIONS)
     await flushMutations()
     flushFrames()
-    const button = foldButton(container, 1)
-    if (button === null) throw new Error('fold button missing')
+    const summary = disclosure(container, 1)
+    if (summary === null) throw new Error('disclosure missing')
 
-    button.click()
+    summary.click()
     await flushMutations()
     flushFrames()
 
     expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
-    expect(button.getAttribute('aria-label')).toBe('Hide turn process')
-    expect(button.textContent).toBe('⌃')
+    expect(row(container, 't2')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
+    expect(summary.getAttribute('aria-expanded')).toBe('true')
 
-    button.click()
+    summary.click()
     await flushMutations()
     flushFrames()
 
     expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
-    expect(button.getAttribute('aria-label')).toBe('Show turn process')
+    expect(summary.getAttribute('aria-expanded')).toBe('false')
     dispose()
   })
 
-  it('does not toggle from clicks on the footer text outside the button', async () => {
+  it('summarizes a tool-free turn as thought for a while', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
-      { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
+      { kind: 'context', turn: 1, anchorKey: 'c1', text: 'context' },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
-      { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 3m' },
+      { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: '' },
     ])
-    const tail = row(container, 'tail1')
-    if (tail === null) throw new Error('tail row missing')
     const dispose = installChatFoldController(OPTIONS)
     await flushMutations()
     flushFrames()
 
-    tail.click()
-    await flushMutations()
-    flushFrames()
-
-    expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
+    const summary = disclosure(container, 1)
+    expect(summary?.querySelector('span')?.textContent).toBe('Thought for a while')
+    expect(row(container, 'c1')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
     dispose()
   })
 
-  it('re-appends the toggle button after a stock re-render removes it', async () => {
+  it('re-appends the disclosure after a stock re-render removes it', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
       { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 4m' },
@@ -182,40 +196,20 @@ describe('chat fold controller', () => {
     const dispose = installChatFoldController(OPTIONS)
     await flushMutations()
     flushFrames()
-    const button = foldButton(container, 1)
-    if (button === null) throw new Error('fold button missing')
+    const summary = disclosure(container, 1)
+    if (summary === null) throw new Error('disclosure missing')
 
-    button.remove()
+    summary.remove()
     await flushMutations()
     flushFrames()
 
-    const restored = foldButton(container, 1)
+    const restored = disclosure(container, 1)
     expect(restored).not.toBeNull()
-    expect(restored?.getAttribute('aria-label')).toBe('Show turn process')
+    expect(restored?.querySelector('span')?.textContent).toBe('1 tool call')
     dispose()
   })
 
-  it('folds a turn once its footer arrives later', async () => {
-    const container = fixture([
-      { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
-      { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
-      { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
-    ])
-    const dispose = installChatFoldController(OPTIONS)
-    await flushMutations()
-    flushFrames()
-    expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
-
-    container.append(rowElement({ kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: '' }))
-    await flushMutations()
-    flushFrames()
-
-    expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
-    expect(foldButton(container, 1)?.textContent).toBe('⌄ Show turn process')
-    dispose()
-  })
-
-  it('removes every owned marker, element, and listener on dispose', async () => {
+  it('does not fold a settled turn without its disclosure slot', async () => {
     const container = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
@@ -226,10 +220,26 @@ describe('chat fold controller', () => {
     await flushMutations()
     flushFrames()
 
+    expect(row(container, 't1')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
+    dispose()
+  })
+
+  it('removes every owned marker, element, and listener on dispose', async () => {
+    const container = fixture([
+      { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
+      { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
+      { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
+      { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 6m' },
+    ])
+    const dispose = installChatFoldController(OPTIONS)
+    await flushMutations()
+    flushFrames()
+
     dispose()
 
     expect(container.hasAttribute('data-dsh-fold-root')).toBe(false)
-    expect(document.querySelectorAll('[data-dsh-fold-hidden],[data-dsh-fold-button]')).toHaveLength(0)
+    expect(document.querySelectorAll('[data-dsh-fold-hidden],[data-dsh-fold-disclosure]')).toHaveLength(0)
     expect(document.querySelector('style[data-dsh-chat-fold-styles]')).toBeNull()
 
     const tail = row(container, 'tail1')
@@ -241,9 +251,10 @@ describe('chat fold controller', () => {
   it('rebinds when the conversation replaces the flow container', async () => {
     const first = fixture([
       { kind: 'user', turn: 1, anchorKey: 'u1', text: 'question' },
+      { kind: 'turn-process', turn: 1, anchorKey: 'p1', stockHidden: true },
       { kind: 'tool-call', turn: 1, anchorKey: 't1', text: 'tool' },
       { kind: 'assistant-step', turn: 1, anchorKey: 'a1', text: 'answer' },
-      { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 6m' },
+      { kind: 'turn-tail', turn: 1, anchorKey: 'tail1', text: 'Ran for 7m' },
     ])
     const dispose = installChatFoldController(OPTIONS)
     await flushMutations()
@@ -253,9 +264,10 @@ describe('chat fold controller', () => {
     second.id = 'flow-next'
     for (const spec of [
       { kind: 'user', turn: 7, anchorKey: 'u7', text: 'new session' },
+      { kind: 'turn-process', turn: 7, anchorKey: 'p7', stockHidden: true },
       { kind: 'tool-call', turn: 7, anchorKey: 't7', text: 'tool' },
       { kind: 'assistant-step', turn: 7, anchorKey: 'a7', text: 'answer' },
-      { kind: 'turn-tail', turn: 7, anchorKey: 'tail7', text: 'Ran for 7m' },
+      { kind: 'turn-tail', turn: 7, anchorKey: 'tail7', text: 'Ran for 8m' },
     ] as const) second.append(rowElement(spec))
     first.replaceWith(second)
     await flushMutations()
@@ -265,13 +277,12 @@ describe('chat fold controller', () => {
     expect(first.hasAttribute('data-dsh-fold-root')).toBe(false)
     expect(row(second, 't7')?.hasAttribute('data-dsh-fold-hidden')).toBe(true)
 
-    const button = foldButton(second, 7)
-    if (button === null) throw new Error('replacement fold button missing')
-    button.click()
+    const summary = disclosure(second, 7)
+    if (summary === null) throw new Error('replacement disclosure missing')
+    summary.click()
     await flushMutations()
     flushFrames()
     expect(row(second, 't7')?.hasAttribute('data-dsh-fold-hidden')).toBe(false)
     dispose()
   })
 })
-

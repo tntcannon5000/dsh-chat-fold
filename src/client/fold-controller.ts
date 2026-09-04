@@ -4,25 +4,27 @@
  * Restores compact turn folding for sessions where the stock Web transcript
  * keeps every completed row expanded. The stock UI disables turn folding while
  * any older history page is unloaded (`historyIncomplete`), so very long
- * sessions never fold at all. This controller re-creates that presentation on
- * top of the stock DOM using only semantic `data-*` anchors published by the
- * Chat flow rows:
+ * sessions never fold at all. This controller re-creates the stock Compact
+ * presentation on top of the stock DOM using only semantic `data-*` anchors
+ * published by the Chat flow rows:
  *
  * - rows carry `data-chat-turn` and `data-chat-flow-kind`;
+ * - every turn renders an (empty, stock-hidden through `hidden="until-found"`)
+ *   `turn-process` row ahead of the finalized answer — the exact slot the
+ *   stock disclosure occupies when it can fold;
  * - a settled turn renders a `turn-tail` footer row;
  * - stock folding, when active, marks its own rows `data-turn-process-member`.
  *
  * The controller hides folded process rows through plugin-owned data
  * attributes and one stylesheet, and toggles a turn through one plugin-owned
- * chevron button appended inside the turn's footer row. The footer row hosts
- * stock actions (including fork) that a touch tap must never activate by
- * accident, so the rest of the row is not a toggle target. The button is
- * self-healing: a stock re-render that removes it is observed and the next
- * classification pass re-appends it. While stock folding is active the
- * controller stands down completely and removes its own additions.
+ * disclosure button placed inside the empty `turn-process` row — visually the
+ * stock "N tool calls ›" line above the final answer, never at the bottom of
+ * the chat. The disclosure is self-healing: a stock re-render that removes it
+ * is observed and the next classification pass re-appends it. While stock
+ * folding is active the controller stands down completely and removes its own
+ * additions.
  */
 
-import type { ChatFoldLabels } from './labels.js'
 import { CHAT_FOLD_STYLES } from './styles.js'
 
 /** One flow row kind that stock folding never hides. */
@@ -40,15 +42,16 @@ const FLOW_ROW_ATTR = 'data-chat-flow-kind'
 const TURN_ATTR = 'data-chat-turn'
 const ANCHOR_ATTR = 'data-chat-anchor-key'
 const STOCK_MEMBER_ATTR = 'data-turn-process-member'
+const TOOL_CALL_KIND = 'tool-call'
 
 const ROOT_ATTR = 'data-dsh-fold-root'
 const STANDDOWN_ATTR = 'data-dsh-fold-standdown'
 const HIDDEN_ATTR = 'data-dsh-fold-hidden'
-const BUTTON_ATTR = 'data-dsh-fold-button'
+const DISCLOSURE_ATTR = 'data-dsh-fold-disclosure'
 const OPEN_ATTR = 'data-dsh-fold-open'
 
 const FOLDED_GLYPH = '⌄'
-const EXPANDED_GLYPH = '⌃'
+const EXPANDED_GLYPH = '⌄'
 
 interface FlowRow {
   readonly element: HTMLElement
@@ -72,6 +75,18 @@ export interface ChatFoldControllerOptions {
   readonly showLabel: string
   /** Accessible label for collapsing an expanded turn. */
   readonly hideLabel: string
+  /** "{count} tool call" singular template. */
+  readonly toolCallOne: string
+  /** "{count} tool calls" plural template. */
+  readonly toolCallOther: string
+  /** "{count} message" singular template. */
+  readonly messageOne: string
+  /** "{count} messages" plural template. */
+  readonly messageOther: string
+  /** Segment separator between summary counts. */
+  readonly separator: string
+  /** Summary fallback for a turn with no counted process segments. */
+  readonly thoughtLabel: string
 }
 
 function rowOf(element: Element): FlowRow | null {
@@ -97,13 +112,16 @@ function directFlowRows(container: HTMLElement): FlowRow[] {
   return rows
 }
 
+function interpolate(template: string, count: number): string {
+  return template.replace('{count}', String(count))
+}
+
 /**
  * Restore compact turn folding on the stock Chat transcript.
- * @param options - localized labels for the per-turn toggle button.
+ * @param options - localized labels for the per-turn disclosure.
  * @returns disposer removing every listener, element, attribute, and style the controller owns.
  */
 export function installChatFoldController(options: ChatFoldControllerOptions): () => void {
-  const labels: ChatFoldLabels = options
   const style = document.createElement('style')
   style.dataset.dshChatFoldStyles = ''
   style.textContent = CHAT_FOLD_STYLES
@@ -124,33 +142,58 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
     for (const element of container.querySelectorAll(`[${HIDDEN_ATTR}]`)) {
       element.removeAttribute(HIDDEN_ATTR)
     }
-    for (const button of container.querySelectorAll(`[${BUTTON_ATTR}]`)) {
-      button.remove()
+    for (const disclosure of container.querySelectorAll(`[${DISCLOSURE_ATTR}]`)) {
+      disclosure.remove()
     }
   }
 
-  const syncFoldButton = (tail: HTMLElement, open: boolean): void => {
-    let button = tail.querySelector<HTMLButtonElement>(`:scope > [${BUTTON_ATTR}]`)
-    if (button === null) {
-      button = document.createElement('button')
-      button.type = 'button'
-      button.setAttribute(BUTTON_ATTR, '')
-      tail.appendChild(button)
+  /** Compose the stock disclosure summary from the turn's counted rows. */
+  const summaryOf = (toolCalls: number, messages: number): string => {
+    const segments: string[] = []
+    if (toolCalls > 0) {
+      segments.push(interpolate(
+        toolCalls === 1 ? options.toolCallOne : options.toolCallOther,
+        toolCalls,
+      ))
     }
-    const label = open ? labels.hideLabel : labels.showLabel
-    const glyph = open ? EXPANDED_GLYPH : FOLDED_GLYPH
-    // A stopped turn's footer can carry no text at all; the label then makes
-    // the lone chevron line self-explanatory.
-    const tailHasText = [...tail.childNodes]
-      .some(node => node !== button && node.textContent?.trim() !== '')
-    if (tailHasText === button.hasAttribute('data-dsh-fold-labeled')) {
-      if (tailHasText) button.removeAttribute('data-dsh-fold-labeled')
-      else button.setAttribute('data-dsh-fold-labeled', '')
+    if (messages > 0) {
+      segments.push(interpolate(
+        messages === 1 ? options.messageOne : options.messageOther,
+        messages,
+      ))
     }
-    const desiredText = tailHasText ? glyph : `${glyph} ${label}`
-    if (button.textContent !== desiredText) button.textContent = desiredText
-    if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label)
-    writeRow(button, OPEN_ATTR, open)
+    return segments.length === 0 ? options.thoughtLabel : segments.join(options.separator)
+  }
+
+  const syncDisclosure = (
+    processRow: HTMLElement,
+    summary: string,
+    open: boolean,
+  ): void => {
+    let disclosure = processRow.querySelector<HTMLButtonElement>(`:scope > [${DISCLOSURE_ATTR}]`)
+    if (disclosure === null) {
+      disclosure = document.createElement('button')
+      disclosure.type = 'button'
+      disclosure.setAttribute(DISCLOSURE_ATTR, '')
+      const labelSpan = document.createElement('span')
+      const glyphSpan = document.createElement('span')
+      glyphSpan.textContent = FOLDED_GLYPH
+      disclosure.append(labelSpan, glyphSpan)
+      processRow.appendChild(disclosure)
+    }
+    const labelSpan = disclosure.querySelector<HTMLElement>(':scope > span:first-child')
+    if (labelSpan !== null && labelSpan.textContent !== summary) {
+      labelSpan.textContent = summary
+    }
+    if (disclosure.getAttribute('aria-label') !== summary) {
+      disclosure.setAttribute('aria-label', summary)
+    }
+    disclosure.setAttribute('aria-expanded', String(open))
+    writeRow(disclosure, OPEN_ATTR, open)
+    const glyphSpan = disclosure.querySelector<HTMLElement>(':scope > span:last-child')
+    if (glyphSpan !== null && glyphSpan.textContent !== EXPANDED_GLYPH) {
+      glyphSpan.textContent = EXPANDED_GLYPH
+    }
   }
 
   const classify = (bound: FoldState): void => {
@@ -175,15 +218,24 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
       const key = `${turn}:${group[0]?.anchorKey ?? ''}`
       bound.turnKeys.set(turn, key)
       liveKeys.add(key)
-      const tail = group.find(row => row.kind === 'turn-tail')
+      const settled = group.some(row => row.kind === 'turn-tail')
+      const processRow = group.find(row => row.kind === 'turn-process')
       const answerIndex = group.findLastIndex(row => row.kind === 'assistant-step')
       const open = bound.expanded.has(key)
+      let toolCalls = 0
+      let messages = 0
+      let foldableRows = 0
       for (const [index, row] of group.entries()) {
-        const processRow = !INDEPENDENT_KINDS.has(row.kind)
-          && !(row.kind === 'assistant-step' && index === answerIndex)
-        writeRow(row.element, HIDDEN_ATTR, tail !== undefined && processRow && !open)
+        const isAnswer = row.kind === 'assistant-step' && index === answerIndex
+        const foldable = !INDEPENDENT_KINDS.has(row.kind) && !isAnswer
+        if (!foldable) continue
+        foldableRows += 1
+        if (row.kind === TOOL_CALL_KIND) toolCalls += 1
+        else if (row.kind === 'assistant-step') messages += 1
+        writeRow(row.element, HIDDEN_ATTR, settled && processRow !== undefined && !open)
       }
-      if (tail !== undefined) syncFoldButton(tail.element, open)
+      if (!settled || processRow === undefined || foldableRows === 0) continue
+      syncDisclosure(processRow.element, summaryOf(toolCalls, messages), open)
     }
     for (const key of bound.expanded) {
       if (!liveKeys.has(key)) bound.expanded.delete(key)
@@ -232,9 +284,9 @@ export function installChatFoldController(options: ChatFoldControllerOptions): (
   const onClick = (event: MouseEvent): void => {
     if (state === null || state.container.hasAttribute(STANDDOWN_ATTR)) return
     const target = event.target instanceof Element ? event.target : null
-    const button = target?.closest(`[${BUTTON_ATTR}]`)
-    if (button === null || button === undefined) return
-    const row = button.closest(`[${FLOW_ROW_ATTR}]`)
+    const disclosure = target?.closest(`[${DISCLOSURE_ATTR}]`)
+    if (disclosure === null || disclosure === undefined) return
+    const row = disclosure.closest(`[${FLOW_ROW_ATTR}]`)
     if (row === null || row === undefined) return
     const clicked = rowOf(row)
     if (clicked === null) return

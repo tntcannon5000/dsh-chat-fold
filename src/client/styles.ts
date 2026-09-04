@@ -1,40 +1,68 @@
 /**
  * Presentation-only CSS for the fold controller. Every rule scopes behind the
  * plugin-owned root marker and drives off plugin-owned data attributes, so the
- * sheet stays inert the moment the controller disposes.
+ * sheet stays inert the moment the controller disposes. The disclosure rules
+ * mirror the stock turn-process button's layout one-for-one.
  */
 export const CHAT_FOLD_STYLES = `
 [data-dsh-fold-root]:not([data-dsh-fold-standdown]) [data-dsh-fold-hidden] {
   display: none !important;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-button] {
+[data-dsh-fold-root]:not([data-dsh-fold-standdown])
+[data-chat-flow-kind='turn-process'][data-turn-process-hidden]:has(> [data-dsh-fold-disclosure]) {
+  display: block !important;
+  content-visibility: visible !important;
+}
+
+[data-dsh-fold-root] [data-dsh-fold-disclosure] {
   appearance: none;
-  background: transparent;
-  border: 0;
+  background: none;
+  border: none;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   box-sizing: border-box;
-  color: inherit;
+  color: var(--dsw-alias-label-secondary);
   cursor: pointer;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  flex: none;
-  width: 24px;
-  height: 24px;
-  margin: 2px 0 0 auto;
-  padding: 0;
   font: inherit;
-  line-height: 1;
-  opacity: 0.55;
+  height: 33px;
+  min-width: 0;
+  padding: 0 0 8px;
+  text-align: left;
+  width: 100%;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-button]:hover {
-  opacity: 1;
+[data-dsh-fold-root] [data-dsh-fold-disclosure]:not([data-dsh-fold-open]) {
+  margin-bottom: 8px;
 }
 
-[data-dsh-fold-root] [data-dsh-fold-button][data-dsh-fold-labeled] {
-  width: auto;
-  gap: 4px;
-  padding: 0 8px;
+[data-dsh-fold-root] [data-dsh-fold-disclosure] > span:first-child {
+  font-size: 14px;
+  line-height: 24px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-dsh-fold-root] [data-dsh-fold-disclosure] > span:last-child {
+  color: var(--dsw-alias-label-tertiary);
+  flex: none;
+  height: 16px;
+  margin-left: 6px;
+  transform: rotate(-90deg);
+  transition: transform 100ms ease;
+  width: 16px;
+}
+
+[data-dsh-fold-root] [data-dsh-fold-disclosure][data-dsh-fold-open] > span:last-child {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dsh-fold-root] [data-dsh-fold-disclosure] > span:last-child {
+    transition: none;
+  }
 }
 `

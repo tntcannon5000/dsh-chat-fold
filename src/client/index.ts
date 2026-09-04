@@ -25,7 +25,16 @@ export interface ChatFoldClientContext {
 }
 
 function labelsOf(t: (key: keyof typeof labelsEn) => string): ChatFoldLabels {
-  return { showLabel: t('fold.show'), hideLabel: t('fold.hide') }
+  return {
+    showLabel: t('fold.show'),
+    hideLabel: t('fold.hide'),
+    toolCallOne: t('fold.toolCall.one'),
+    toolCallOther: t('fold.toolCall.other'),
+    messageOne: t('fold.message.one'),
+    messageOther: t('fold.message.other'),
+    separator: t('fold.separator'),
+    thoughtLabel: t('fold.thought'),
+  }
 }
 
 /**
