@@ -1,6 +1,6 @@
 {
   "name": "dsh-chat-fold",
-  "version": "0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
   "description": "Unofficial DeepSeek Harness plugin that restores compact turn folding in long sessions where the stock Web transcript keeps every completed tool row expanded.",
   "type": "module",
   "main": "lib/index.js",
@@ -19,7 +19,9 @@
   },
   "files": [
     "lib/index.js",
+    "lib/index.js.map",
     "lib/client.js",
+    "lib/client.js.map",
     "lib/types",
     "cordis.patch.yml",
     "README.md",
@@ -56,7 +58,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "pnpm run clean && tsc --emitDeclarationOnly -p tsconfig.build.json && tsdown",
     "test": "vitest run",
-    "check": "pnpm run typecheck && pnpm run test && pnpm run build"
+    "test:artifact": "node scripts/verify-client-artifact.mjs",
+    "check": "pnpm run typecheck && pnpm run test && pnpm run build && pnpm run test:artifact"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2"

@@ -29,6 +29,7 @@ The visual and interaction target is the stock `TurnProcessNodeView` disclosure 
 7. The footer row is never a toggle target. Its stock actions (copy, feedback, context view, fork) stay always revealed on touch, and a footer-row toggle was observed forking sessions by accident.
 8. The disclosure replicates the stock summary composition — tool calls, then messages, joined by the stock separator, with the stock "Thought for a while" fallback — through the plugin's own locale namespace; subagent counts are not derivable from the DOM and are omitted.
 9. Engine pinned exactly to the tested Harness release; the plugin stays disposable with complete attribute, element, listener, and style cleanup.
+10. Tagged releases carry the built Host, Client, declaration, and source-map artifacts. The Client registration starts with package/version provenance so every release produces a distinct immutable Harness bundle revision.
 
 ## Explicit non-goals
 

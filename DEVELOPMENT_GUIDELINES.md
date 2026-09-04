@@ -32,8 +32,9 @@ The plugin does not own:
 ## Testing
 
 - Unit tests use jsdom with real MutationObserver timing: mutations flush through a macrotask, and classification flushes through a deferred rAF queue (never synchronously inside the observer callback). Coverage: fold classification, answer selection, summary composition (tool calls, messages, thought fallback), live-turn exemption, stand-down, disclosure toggle and `aria-expanded`, disclosure self-healing after removal, turns without a disclosure slot staying unfolded, disposal, and container replacement.
-- Run `pnpm run check` (typecheck, tests, build) before every commit.
-- Live validation loads the built `lib/client.js` through a Web profile `link:` dependency and exercises a long session where stock folding is dormant, plus a short session where stock folding engages.
+- Run `pnpm run check` (typecheck, unit tests, build, and built-artifact verification) before every commit.
+- The artifact verifier executes `lib/client.js` alone and between neighboring Harness-style factory registrations, verifies its module id and Cordis exports, checks the source map, and rejects a publication layout that ignores or omits the built Client files.
+- Live validation loads the built `lib/client.js` through a Web profile `link:` dependency and exercises a clean Web cold start, a long session where stock folding is dormant, and a short session where stock folding engages.
 
 ## Distribution model
 
@@ -41,4 +42,6 @@ The plugin does not own:
 - Do not modify or fork the DeepSeek Harness source.
 - Installation may add the plugin dependency and bundle entry to a Web profile. Back up the profile manifest and lockfile before the first installation, then inspect the resulting diff.
 - Use a local `link:` dependency during development and a pinned release tag for normal installation.
-- Release by pushing a GitHub tag matching the package version; `dsh` resolves the repository through the `dsh-plugin` topic and `dsh.plugin add`.
+- Keep `lib/` tracked. GitHub-tag installation consumes repository contents directly, so a tag without the built Host, Client, declarations, and maps is not a release.
+- Stamp the package version into the Client registration banner. Harness serves startup combinations as immutable content-addressed resources; release provenance must therefore change the artifact bytes and its bundle revision.
+- Release by pushing a GitHub tag matching the package version; `dsh` resolves the repository through the `dsh-plugin` topic and `dsh plugin add`.

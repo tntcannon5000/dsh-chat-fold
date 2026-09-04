@@ -1,6 +1,10 @@
+import { readFileSync } from 'node:fs'
 import type { UserConfig } from 'tsdown'
 
 const ID = 'dsh-chat-fold'
+const VERSION = (JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as {
+  version: string
+}).version
 
 const host: UserConfig = {
   name: ID,
@@ -33,7 +37,7 @@ const client: UserConfig = {
   outputOptions: {
     codeSplitting: false,
     entryFileNames: 'client.js',
-    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(ID)}, factory: (require) => {`,
+    banner: `/* ${ID} v${VERSION} */\nwindow.__ModuleLoader__.load({ id: ${JSON.stringify(ID)}, factory: (require) => {`,
     intro: 'var module = { exports: {} }; var exports = module.exports;',
     footer: 'return module.exports; } });',
   },

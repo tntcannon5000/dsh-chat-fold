@@ -20,7 +20,7 @@ pnpm install
 pnpm run check
 ```
 
-Then add a `link:` dependency to the Web profile's `package.json` and append `dsh-chat-fold` to that profile's `dsh.profile.bundles` list. Build this package before reloading Harness because the Web runtime serves `lib/client.js`.
+Then add a `link:` dependency to the Web profile's `package.json` and append `dsh-chat-fold` to that profile's `dsh.profile.bundles` list. Build this package before reloading Harness because the Web runtime serves `lib/client.js`. Tagged releases include the same checked build artifacts used by local development.
 
 From GitHub:
 
